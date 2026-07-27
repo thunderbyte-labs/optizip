@@ -1,0 +1,8 @@
+# Optical Preprocessing Microservice - Hera (ROCm 7.2)
+# Torch is installed separately in install.sh (ROCm wheel)
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.17
+pillow>=10.2.0
+pydantic>=2.9.0

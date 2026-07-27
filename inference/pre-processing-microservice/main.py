@@ -4,6 +4,9 @@ Optical Preprocessing Microservice (pur)
 Cible : hera (ROCm 7.2) – 1× RDNA 4 (9070 XT)
 DeepEncoder V2 (multi-crop) → OpticalAdapter → prompt_embeds base64
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import os
 import io
@@ -19,6 +22,7 @@ import torch
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 from PIL import Image
+from models.optical_adapter import OpticalAdapter
 
 # ==============================================================================
 # Configuration – forcée pour hera (1 seul GPU)
@@ -118,34 +122,31 @@ def load_models():
 
     t0 = time.perf_counter()
     try:
-        # ------------------------------------------------------------------
-        # TODO : Adapter selon la façon exacte dont tu as sauvegardé le .pt
-        # ------------------------------------------------------------------
-        # Exemple si c'est un state_dict :
-        # from your_module import OpticalAdapter
-        # optical_adapter = OpticalAdapter(input_dim=896, output_dim=2048)
-        # state = torch.load(ADAPTER_CHECKPOINT, map_location="cpu", weights_only=True)
-        # optical_adapter.load_state_dict(state)
-
-        # Pour l'instant (modèle complet ou state_dict selon ton cas)
-        optical_adapter = torch.load(
+        raw = torch.load(
             ADAPTER_CHECKPOINT,
             map_location="cpu",
-            weights_only=False          # change en True si c'est un pure state_dict
+            weights_only=True
         )
+
+        # Gestion du format de sauvegarde
+        if isinstance(raw, dict) and "adapter" in raw:
+            state_dict = raw["adapter"]
+        else:
+            state_dict = raw
+
+        optical_adapter = OpticalAdapter(in_dim=896, out_dim=2048)
+        optical_adapter.load_state_dict(state_dict)
         optical_adapter.eval()
         optical_adapter.to(DEVICE)
 
         elapsed = (time.perf_counter() - t0) * 1000
-        logger.info(f"OpticalAdapter loaded",
+        logger.info("OpticalAdapter loaded",
                     extra={"request_id": "startup", "duration_ms": elapsed})
 
     except Exception as e:
         logger.error(f"Failed to load OpticalAdapter: {e}",
                      extra={"request_id": "startup"})
         raise
-
-    logger.info("Service ready", extra={"request_id": "startup"})
 
 # ==============================================================================
 # Extraction (placeholders à remplacer par tes vrais scripts)
