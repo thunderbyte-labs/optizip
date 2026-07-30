@@ -110,7 +110,7 @@ def main():
     ap.add_argument("--images-dir", default="data/test/images")
     ap.add_argument("--texts-dir", default="data/test/texts")
     ap.add_argument("--out-dir", default="data/test/tokens_896")
-    ap.add_argument("--weights", default="./DeepSeek-OCR-2-weights")
+    ap.add_argument("--weights", default="data/generate-causal-tokens/DeepSeek-OCR-2-weights/")
     ap.add_argument("--num", type=int, default=5000)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--device", default="cuda:0")
