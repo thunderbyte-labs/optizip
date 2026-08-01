@@ -94,8 +94,7 @@ def main():
         message.get("content")
         or message.get("reasoning")
         or message.get("reasoning_content")
-        or message.get("text")
-        or str(message)
+        or ""
     )
 
     # ----------------------------------------------------------
