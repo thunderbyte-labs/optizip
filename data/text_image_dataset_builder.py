@@ -157,7 +157,7 @@ class Config:
     
     # Paramètres d'image
     font_name: str = "DejaVu Sans Mono"
-    line_numbers: bool = True
+    line_numbers: bool = False
     line_pad: int = 4
     
     # Multiprocessing
@@ -352,7 +352,7 @@ class CodeImageGenerator:
         font_size: int,
         dpi: int,
         lexer,                # <-- peut être une classe ou une instance
-        line_numbers: bool = True,
+        line_numbers: bool = False,
     ) -> Optional[Image.Image]:
         """Rend le code en image avec Pygments."""
         try:
@@ -373,8 +373,6 @@ class CodeImageGenerator:
                 style=style,
                 image_format="png",
                 dpi=dpi,
-                line_number_bg=bg_color,
-                line_number_fg='#888888',
             )
             
             image_data = highlight(code, lexer, formatter)
@@ -564,7 +562,8 @@ def generate_dataset(config: Config):
             style = random.choice(config.styles)
             font_size = random.choice(config.font_sizes)
             dpi = random.choice(config.dpi_variations)
-            line_numbers = random.choice([True, True, False])  # biais vers True
+            # line_numbers = random.choice([True, True, False])  # biais vers True
+            line_numbers = False
             
             # Générer l'image
             image = generator.render_code_to_image(
