@@ -128,11 +128,34 @@ To match effective batch size on your hardware:
 
 The Quick Start examples use conservative settings (`batch_size=1`) for compatibility with smaller GPUs.
 
+For a fully scripted reproduction of the language-modeling rows in Table 2
+(hierarchical t=63 and vision tiny frozen), see
+[`scripts/reproduce_plan1/`](scripts/reproduce_plan1/README.md). Those scripts
+use the released `conv1d_t63_h0_recon` checkpoint for the two-stage
+reconstruction → LM recipe and pass the 4-token vision prompt required to match
+the paper's 78-token context.
+
 ## Requirements
 
 - **GPU**: 24-32GB VRAM recommended (memory optimizations enabled by default)
 - **Python**: 3.12+
 - **Dependencies**: Managed via `uv` (see `pyproject.toml`)
+- **PyTorch**: 2.13+ with CUDA 13. On aarch64 the PyPI `torch` wheel is
+  CUDA-enabled; older pins such as 2.6.0 resolve to a CPU-only wheel.
+
+### NVIDIA GB10 / aarch64 + CUDA 13
+
+`torch==2.13.0` and `torchvision==0.28.0` are required for GB10 (compute
+capability 12.1) and CUDA 13. FlashAttention-2 has no aarch64 + CUDA 13 wheel,
+so the loader uses the `eager` attention backend by default when `flash_attn`
+is unavailable. Control this explicitly with:
+
+```bash
+--attn_implementation auto|flash_attention_2|eager
+```
+
+`auto` prefers FlashAttention-2 when a usable build is installed and falls back
+to eager otherwise.
 
 ## Weights & Biases
 
