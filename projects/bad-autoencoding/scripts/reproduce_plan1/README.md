@@ -28,7 +28,13 @@ bash scripts/reproduce_plan1/03_vision_tiny_frozen.sh
 
 # 4. Formatted results
 uv run python scripts/reproduce_plan1/extract_results.py
+
+# 5. Statistical report (Markdown + figures)
+uv run python scripts/reproduce_plan1/make_report.py
 ```
+
+The report is written to `outputs/report/REPORT.md`, with PNG figures and a
+machine-readable `summary.json`.
 
 ## Why these flags matter
 
@@ -118,6 +124,7 @@ Each run writes:
 ```text
 outputs/<run>/train.log              # full log, including final validation
 outputs/<run>/args.json              # exact configuration
+outputs/<run>/val_per_sample.jsonl   # per-sample NLL from the final validation
 outputs/<run>/best_checkpoint.pt     # best validation loss
 outputs/<run>/final_checkpoint.pt    # symlink to best when final is best
 ```
@@ -130,6 +137,27 @@ outputs/<run>/final_checkpoint.pt    # symlink to best when final is best
   - vision tiny: **539,000,000**
 - compression ratio `1000 / context_tokens`
 - `delta_ppl` against the paper value.
+
+## Statistical report
+
+The full run scripts pass `--save_val_per_sample`, which writes the mean NLL of
+each validation sample to `val_per_sample.jsonl` during the final validation.
+`make_report.py` uses those values to produce:
+
+- `REPORT.md`: results table, confidence intervals, paired comparison, and a
+  discussion of what the differences do and do not establish.
+- `summary.json`: machine-readable metrics.
+- `fig1_ppl_vs_paper.png`: our PPL with 95% bootstrap CI next to the paper.
+- `fig2_delta_vs_paper.png`: signed difference from the paper.
+- `fig3_bootstrap_ppl.png`: bootstrap distribution of our PPL.
+- `fig4_paired_delta.png`: paired ΔPPL/ΔNLL on the same validation samples.
+- `fig5_validation_curves.png`: PPL during training.
+- `fig6_per_sample_ecdf.png`: per-sample loss distributions.
+
+The within-run CI reflects validation-set sampling noise, not training-seed
+variance. The paper publishes point estimates only, so the paper comparison is
+descriptive; the hierarchical-vs-vision comparison is a proper paired test on
+the shared validation samples.
 
 ## Troubleshooting
 
