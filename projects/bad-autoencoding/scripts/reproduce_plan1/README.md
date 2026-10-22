@@ -22,7 +22,7 @@ bash scripts/reproduce_plan1/00_setup_gb10.sh
 bash scripts/reproduce_plan1/01_smoke_vision.sh
 bash scripts/reproduce_plan1/01_smoke_conv1d.sh
 
-# 3. Full runs (sequential; each one takes about a day on a GB10)
+# 3. Full runs (sequential; each one takes about four days on a GB10)
 bash scripts/reproduce_plan1/02_conv1d_t63.sh
 bash scripts/reproduce_plan1/03_vision_tiny_frozen.sh
 
@@ -141,6 +141,17 @@ outputs/<run>/final_checkpoint.pt    # symlink to best when final is best
 | PPL far above 5.14 for conv1d | `--init_from_checkpoint` is missing or points to the wrong checkpoint. |
 | CUDA OOM | Lower `BATCH_SIZE` and raise `GRAD_ACCUM` to keep 48. |
 | Checkpoint download takes long | The reconstruction checkpoint is 18.7 GB; it is reused on subsequent runs. |
+
+## Expected duration on a GB10
+
+With eager attention and `batch_size=8`, the vision tiny smoke benchmark
+measured about **1.7k target tokens/s** (roughly 4.8 s per batch of 8 samples,
+or ~30 s per optimizer update at effective batch 48). One 10,417-update epoch
+therefore takes about **3.5 days**, plus validation passes. Plan for roughly
+four days per run, and run the two configurations sequentially.
+
+`batch_size=16` did not improve throughput in the same benchmark, so keep the
+default 8 x 6 split unless a different GPU changes the picture.
 
 ## Notes
 
