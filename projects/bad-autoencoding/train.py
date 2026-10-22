@@ -1854,7 +1854,8 @@ def main(args):
         device=args.device,
         use_optimized_model=args.use_optimized_model,
         use_encoder_checkpointing=args.use_encoder_checkpointing,
-        load_vision_encoder=load_vision_encoder
+        load_vision_encoder=load_vision_encoder,
+        attn_implementation=args.attn_implementation
     )
 
     # Enable decoder gradient checkpointing if requested

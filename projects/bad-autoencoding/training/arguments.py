@@ -209,6 +209,12 @@ def create_argument_parser() -> argparse.ArgumentParser:
                             'Recommended: max-autotune for multi-day production runs. (default: default)')
 
     # Model optimization flags
+    parser.add_argument('--attn_implementation', type=str, default='auto',
+                       choices=['auto', 'flash_attention_2', 'eager'],
+                       help='Attention backend for the vendored DeepSeek-OCR model. '
+                            'auto uses FlashAttention-2 when a usable build is installed and '
+                            'falls back to eager otherwise. Use eager on platforms without a '
+                            'FlashAttention-2 wheel (e.g. GB10 / aarch64 + CUDA 13).')
     parser.add_argument('--use_optimized_model', action='store_true', dest='use_optimized_model',
                        help='Use training-optimized DeepSeek-OCR implementation with fixed graph breaks '
                             'and reduced device transfers. Enables better torch.compile support. '

@@ -7,13 +7,44 @@ import torch
 from transformers import AutoTokenizer
 
 
+ATTENTION_IMPLEMENTATIONS = ("auto", "flash_attention_2", "eager")
+
+
+def _flash_attn_available() -> bool:
+    """Return True when a usable FlashAttention-2 build is installed."""
+    try:
+        from transformers.utils import is_flash_attn_2_available
+    except ImportError:
+        return False
+    return is_flash_attn_2_available()
+
+
+def resolve_attn_implementation(requested: str = "auto") -> str:
+    """Resolve the attention implementation used by the vendored model.
+
+    ``auto`` selects FlashAttention-2 when available and falls back to eager
+    attention otherwise. The fallback is required on platforms without a
+    FlashAttention-2 wheel (for example aarch64 + CUDA 13), where the previous
+    hardcoded choice made model loading fail with an ImportError.
+    """
+    if requested not in ATTENTION_IMPLEMENTATIONS:
+        raise ValueError(
+            f"attn_implementation must be one of {ATTENTION_IMPLEMENTATIONS}, "
+            f"got {requested!r}"
+        )
+    if requested != "auto":
+        return requested
+    return "flash_attention_2" if _flash_attn_available() else "eager"
+
+
 def load_model_and_tokenizer(
     model_name: str = './vendor/deepseek_ocr',
     weights_name: str = 'deepseek-ai/DeepSeek-OCR',
     device: str = 'cuda',
     use_optimized_model: bool = False,
     use_encoder_checkpointing: bool = False,
-    load_vision_encoder: bool = True
+    load_vision_encoder: bool = True,
+    attn_implementation: str = "auto"
 ):
     """
     Load DeepSeek-OCR model and tokenizer
@@ -26,6 +57,8 @@ def load_model_and_tokenizer(
         use_encoder_checkpointing: If True, enable gradient checkpointing for vision encoder
         load_vision_encoder: If True, load vision encoder components (SAM, ViT, projector).
                             Set to False for text-only regimes to save ~1.5-2GB GPU memory.
+        attn_implementation: Attention backend: 'auto' (FlashAttention-2 if installed,
+                            eager otherwise), 'flash_attention_2', or 'eager'.
 
     Returns:
         Tuple of (model, tokenizer)
@@ -69,7 +102,9 @@ def load_model_and_tokenizer(
 
     print("Loading config...")
     config = DeepseekOCRConfig.from_pretrained(str(vendor_path))
-    config._attn_implementation = "flash_attention_2"
+    resolved_attn_implementation = resolve_attn_implementation(attn_implementation)
+    print(f"Attention implementation: {resolved_attn_implementation}")
+    config._attn_implementation = resolved_attn_implementation
 
     print("Loading model...")
     if not load_vision_encoder:

@@ -803,6 +803,7 @@ def merge_args(checkpoint_args: dict, cli_args):
         'use_wandb', 'wandb_project', 'wandb_run_name',
         'num_workers', 'prefetch_factor',
         'compile', 'use_optimized_model', 'use_encoder_checkpointing',
+        'attn_implementation',   # Runtime backend (not part of model weights)
         'debug_log_sample_ids',  # Debug flag
         'device',                # Runtime setting
         'eval_seed',             # Validation setting
