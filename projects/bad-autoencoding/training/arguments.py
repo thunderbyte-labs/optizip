@@ -139,6 +139,13 @@ def create_argument_parser() -> argparse.ArgumentParser:
                        help='Number of samples to generate text for during validation (default: 5, 0 = skip)')
     parser.add_argument('--max_generation_tokens', type=int, default=200,
                        help='Maximum tokens to generate during qualitative evaluation (default: 200)')
+    parser.add_argument('--save_val_per_sample', action='store_true', dest='save_val_per_sample',
+                       help='Save per-sample validation NLL to val_per_sample.jsonl during the '
+                            'final validation pass. Enables bootstrap confidence intervals and '
+                            'paired significance tests in make_report.py.')
+    parser.add_argument('--no-save-val-per-sample', action='store_false', dest='save_val_per_sample',
+                       help='Disable per-sample validation NLL saving (override checkpoint default)')
+    parser.set_defaults(save_val_per_sample=False)
 
     # Weights & Biases integration
     parser.add_argument('--use_wandb', action='store_true', dest='use_wandb',

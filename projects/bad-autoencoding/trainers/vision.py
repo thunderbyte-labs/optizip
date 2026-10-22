@@ -267,7 +267,8 @@ class VisionCompressionTrainer:
         image_tensor: torch.Tensor,
         target_tokens: torch.Tensor,
         hybrid_text: Optional[torch.Tensor] = None,
-        objective: str = 'lm'
+        objective: str = 'lm',
+        return_logits: bool = False
     ) -> torch.Tensor:
         """
         Forward pass for Regime 1
@@ -314,6 +315,8 @@ class VisionCompressionTrainer:
             return_dict=True
         )
 
+        if return_logits:
+            return outputs.loss, labels, outputs.logits
         return outputs.loss, labels
 
     def generate_text(

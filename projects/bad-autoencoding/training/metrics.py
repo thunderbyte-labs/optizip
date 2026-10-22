@@ -9,8 +9,33 @@ import re
 
 import jieba
 import nltk
+import torch
+import torch.nn.functional as F
 from nltk.metrics import f_measure, precision, recall
 from nltk.translate import meteor_score
+
+
+def per_sample_nll(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    ignore_index: int = -100,
+) -> torch.Tensor:
+    """Compute the mean negative log-likelihood of each sample.
+
+    This mirrors the shifted cross-entropy used by the model, but keeps the
+    values per sample so validation uncertainty and paired tests can be
+    computed. Positions with ``ignore_index`` do not contribute.
+    """
+    shift_logits = logits[:, :-1, :]
+    shift_labels = labels[:, 1:]
+    token_losses = F.cross_entropy(
+        shift_logits.reshape(-1, shift_logits.size(-1)),
+        shift_labels.reshape(-1),
+        ignore_index=ignore_index,
+        reduction="none",
+    ).reshape(shift_labels.shape)
+    token_counts = (shift_labels != ignore_index).sum(dim=1).clamp_min(1)
+    return token_losses.sum(dim=1) / token_counts
 
 
 def contain_chinese_string(text):

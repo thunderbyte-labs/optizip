@@ -55,6 +55,7 @@ uv run python train.py \
     --save_steps 0 \
     --log_steps 10 \
     --num_qualitative_samples 0 \
+    --save_val_per_sample \
     --num_workers "$NUM_WORKERS" \
     --prefetch_factor "$PREFETCH_FACTOR" \
     --initial_validation \

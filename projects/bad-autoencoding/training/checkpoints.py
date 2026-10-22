@@ -799,6 +799,7 @@ def merge_args(checkpoint_args: dict, cli_args):
         'eval_steps', 'log_steps', 'save_steps',
         'num_epochs', 'initial_validation',
         'num_qualitative_samples', 'max_generation_tokens',
+        'save_val_per_sample',
         'no_checkpoints', 'validation_only',
         'use_wandb', 'wandb_project', 'wandb_run_name',
         'num_workers', 'prefetch_factor',

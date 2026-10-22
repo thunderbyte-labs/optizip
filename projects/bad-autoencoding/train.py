@@ -74,7 +74,7 @@ from trainers.config import (
 )
 
 # Import text similarity metrics for qualitative evaluation
-from training.metrics import cal_per_metrics
+from training.metrics import cal_per_metrics, per_sample_nll
 
 # Import Arrow-backed datasets for memory-efficient loading
 from training.arrow_datasets import ArrowTextDataset, ArrowVisionDataset
@@ -1285,7 +1285,8 @@ def evaluate(
     num_qualitative_samples: int = 0,
     max_generation_tokens: int = 200,
     output_dir: Optional[Path] = None,
-    eval_seed: int = 42
+    eval_seed: int = 42,
+    collect_per_sample: bool = False
 ):
     """
     Evaluate on validation set with quantitative and qualitative evaluation
@@ -1301,6 +1302,9 @@ def evaluate(
         max_generation_tokens: Maximum tokens to generate per sample
         output_dir: Output directory for saving qualitative samples
         eval_seed: Seed for deterministic validation (ensures reproducible random subsampling)
+        collect_per_sample: If True, compute and save per-sample validation NLL
+                            to ``val_per_sample.jsonl`` (used for confidence
+                            intervals and paired significance tests)
 
     Returns:
         Dict with evaluation metrics and qualitative samples
@@ -1310,6 +1314,9 @@ def evaluate(
     # Quantitative evaluation
     total_loss = 0.0
     num_samples = 0
+
+    # Per-sample losses (optional; used by the statistical report)
+    per_sample_records = []
 
     # Qualitative evaluation
     qualitative_samples = []
@@ -1328,12 +1335,14 @@ def evaluate(
                 hybrid_text = batch.get('hybrid_text', None)
 
                 # Determine target based on objective
-                if objective == 'lm':
-                    target = batch['continuation']
-                else:  # reconstruction
-                    target = batch['context']
+                target = batch['continuation'] if objective == 'lm' else batch['context']
 
-                loss, _ = trainer.forward(image, target, hybrid_text, objective=objective)
+                if collect_per_sample:
+                    loss, labels, logits = trainer.forward(
+                        image, target, hybrid_text, objective=objective, return_logits=True
+                    )
+                else:
+                    loss, labels = trainer.forward(image, target, hybrid_text, objective=objective)
 
             elif regime in ['text', 'meanpool', 'conv1d_residual']:
                 # Text-based regimes: extract context and target from batch
@@ -1342,16 +1351,29 @@ def evaluate(
                 hybrid_text = batch.get('hybrid_text', None)
 
                 # Determine target based on objective
-                if objective == 'lm':
-                    target = continuation
-                else:  # reconstruction
-                    target = context
+                target = continuation if objective == 'lm' else context
 
                 # Pass hybrid_text for regimes that support it
                 if regime in ['meanpool', 'conv1d_residual']:
-                    loss, _ = trainer.forward(context, target, hybrid_text, objective=objective)
+                    if collect_per_sample:
+                        loss, labels, logits = trainer.forward(
+                            context, target, hybrid_text, objective=objective, return_logits=True
+                        )
+                    else:
+                        loss, labels = trainer.forward(context, target, hybrid_text, objective=objective)
                 else:  # text
-                    loss, _ = trainer.forward(context, target, objective=objective)
+                    if collect_per_sample:
+                        loss, labels, logits = trainer.forward(
+                            context, target, objective=objective, return_logits=True
+                        )
+                    else:
+                        loss, labels = trainer.forward(context, target, objective=objective)
+
+            if collect_per_sample:
+                sample_nlls = per_sample_nll(logits, labels).tolist()
+                for sample_id, nll in zip(batch['sample_id'], sample_nlls):
+                    per_sample_records.append({'sample_id': sample_id, 'nll': nll})
+                del logits
 
             total_loss += loss.item()
             num_samples += 1
@@ -1601,6 +1623,20 @@ def evaluate(
 
         wandb.log(wandb_data, step=global_step)
 
+    per_sample_path = None
+    if collect_per_sample:
+        if output_dir is None:
+            logger.warning(
+                "collect_per_sample=True but no output_dir was provided; "
+                "per-sample NLL will not be saved."
+            )
+        else:
+            per_sample_path = Path(output_dir) / 'val_per_sample.jsonl'
+            with open(per_sample_path, 'w') as f:
+                for record in per_sample_records:
+                    f.write(json.dumps(record) + '\n')
+            logger.info(f"Per-sample validation NLL saved to: {per_sample_path}")
+
     trainer.model.train()
 
     return {
@@ -1608,7 +1644,8 @@ def evaluate(
         'perplexity': perplexity,
         'num_samples': num_samples,
         'qualitative_samples': qualitative_samples,
-        'qualitative_metrics': qualitative_metrics
+        'qualitative_metrics': qualitative_metrics,
+        'per_sample_path': per_sample_path
     }
 
 
@@ -2204,7 +2241,8 @@ def main(args):
             num_qualitative_samples=args.num_qualitative_samples,
             max_generation_tokens=args.max_generation_tokens,
             output_dir=output_dir,
-            eval_seed=args.eval_seed
+            eval_seed=args.eval_seed,
+            collect_per_sample=args.save_val_per_sample
         )
 
         logger.info(f"\n{'='*70}")
@@ -2603,7 +2641,8 @@ def main(args):
             num_qualitative_samples=args.num_qualitative_samples,
             max_generation_tokens=args.max_generation_tokens,
             output_dir=output_dir,
-            eval_seed=args.eval_seed
+            eval_seed=args.eval_seed,
+            collect_per_sample=args.save_val_per_sample
         )
         final_val_loss = val_metrics['loss']
         final_val_perplexity = val_metrics['perplexity']

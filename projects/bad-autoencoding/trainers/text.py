@@ -86,7 +86,8 @@ class TextBaselineTrainer:
         self,
         batch_or_context: Union[dict, torch.Tensor],
         target_tokens: Optional[torch.Tensor] = None,
-        objective: str = 'lm'
+        objective: str = 'lm',
+        return_logits: bool = False
     ) -> torch.Tensor:
         """
         Forward pass for Regime 2
@@ -178,6 +179,8 @@ class TextBaselineTrainer:
             return_dict=True
         )
 
+        if return_logits:
+            return outputs.loss, labels, outputs.logits
         return outputs.loss, labels
 
     def generate_text(

@@ -232,7 +232,8 @@ class MeanPoolCompressionTrainer:
         context_tokens: torch.Tensor,
         target_tokens: torch.Tensor,
         hybrid_text: Optional[torch.Tensor] = None,
-        objective: str = 'lm'
+        objective: str = 'lm',
+        return_logits: bool = False
     ) -> torch.Tensor:
         """
         Forward pass with mean pooling embedding injection
@@ -373,6 +374,8 @@ class MeanPoolCompressionTrainer:
             return_dict=True
         )
 
+        if return_logits:
+            return outputs.loss, labels, outputs.logits
         return outputs.loss, labels
 
     def generate_text(
