@@ -138,6 +138,11 @@ Adafactor: the launcher warns and the results must be reported separately.
   GPUs.
 - FlashAttention-2 may be unavailable; `--attn_implementation eager` is the
   supported fallback.
+- If loading the safetensors checkpoint is pathologically slow (roughly a
+  fixed 2 s per 2-D tensor), set `CLONE_MODEL_BEFORE_DEVICE=1`. It copies each
+  storage into anonymous CPU memory before the host-to-device transfer, which
+  avoids a slow mmap-backed copy path seen on some ROCm builds. Tied
+  parameters still share storage.
 
 ## Monitoring
 

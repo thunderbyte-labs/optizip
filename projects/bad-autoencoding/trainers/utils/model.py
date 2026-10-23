@@ -1,5 +1,6 @@
 """Model loading utilities."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -133,6 +134,24 @@ def load_model_and_tokenizer(
 
     device_obj = torch.device(device)
     print(f"Ensuring bfloat16 dtype and moving to {device}...")
-    model = model.eval().to(device_obj).to(torch.bfloat16)
+    model = model.eval().to(torch.bfloat16)
+    if os.environ.get("CLONE_MODEL_BEFORE_DEVICE", "0") == "1":
+        # Workaround for a ROCm/PyTorch path where every host-to-device copy
+        # from a safetensors mmap tensor costs a fixed ~2 s. Copying each
+        # storage into anonymous CPU memory first (clone) makes the H2D copy
+        # fast. Cache by data_ptr so tied parameters keep sharing storage.
+        cache = {}
+
+        def _clone_to_device(tensor):
+            key = (tensor.data_ptr(), tuple(tensor.shape),
+                   tuple(tensor.stride()), tensor.dtype)
+            if key not in cache:
+                cache[key] = tensor.clone().to(device_obj)
+            return cache[key]
+
+        model._apply(_clone_to_device)
+        model = model.to(torch.bfloat16)
+    else:
+        model = model.to(device_obj).to(torch.bfloat16)
 
     return model, tokenizer
