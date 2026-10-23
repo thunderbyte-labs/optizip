@@ -118,6 +118,7 @@ All scripts source `common.sh`. Override any of these before running:
 | `BATCH_SIZE` | `8` | Per-device batch size |
 | `GRAD_ACCUM` | `6` | Gradient accumulation (8 x 6 = 48) |
 | `EVAL_STEPS` | `500` | Validation interval |
+| `SAVE_STEPS` | `2000` | FSDP model-only checkpoint interval (`0` disables) |
 | `NUM_WORKERS` | `8` | DataLoader workers |
 | `ATTN_IMPLEMENTATION` | `eager` | `auto`, `flash_attention_2`, or `eager` |
 | `FORCE` | `0` | Set to `1` to delete an existing run directory |
@@ -222,8 +223,11 @@ default 8 x 6 split unless a different GPU changes the picture.
 
 ## Notes
 
-- `--save_steps 0` keeps only `best_checkpoint.pt` and `final_checkpoint.pt`.
-  With AdamW this avoids writing ~10 large periodic checkpoints.
+- The single-GPU launchers (`02`, `03`) pass `--save_steps 0` and keep only
+  `best_checkpoint.pt` / `final_checkpoint.pt`. The FSDP launcher (`04`)
+  defaults to `SAVE_STEPS=2000` and writes non-resumable model-only
+  `checkpoint_step_N.pt` files, so a multi-day run on a new stack does not
+  lose all progress on a crash. Set `SAVE_STEPS=0` to disable them.
 - Validation always runs on the full 10k validation split. Qualitative
   generation is disabled (`--num_qualitative_samples 0`) because it does not
   affect perplexity.

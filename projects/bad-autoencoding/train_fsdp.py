@@ -458,6 +458,9 @@ def main() -> int:
         sharding_strategy=ShardingStrategy.FULL_SHARD,
         use_orig_params=True,
         sync_module_states=True,
+        # Overlap the next unit's all-gather with the current unit's compute.
+        # This matters for the 1-sample micro-batches used on 16 GB GPUs.
+        forward_prefetch=True,
     )
     trainer.model = fsdp_model
 
@@ -654,6 +657,21 @@ def main() -> int:
                             best_val_loss = metrics["loss"]
                         torch.cuda.empty_cache()
                     dist.barrier()
+
+                # Non-resumable periodic checkpoint: limits the loss if the
+                # multi-day run crashes. The full-state-dict gather is
+                # collective, so every rank must enter it.
+                if args.save_steps > 0 and global_step % args.save_steps == 0:
+                    _save_checkpoint(
+                        fsdp_model,
+                        optimizer,
+                        args,
+                        output_dir / f"checkpoint_step_{global_step}.pt",
+                        None,
+                        None,
+                        global_step,
+                        logger,
+                    )
 
         # Flush the remainder of a partial accumulation window.
         if accumulated_batches % args.gradient_accumulation_steps != 0:

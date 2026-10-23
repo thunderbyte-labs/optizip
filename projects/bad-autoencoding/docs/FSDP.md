@@ -81,7 +81,7 @@ torchrun --nproc_per_node=2 train_fsdp.py \
     --optimizer adamw8bit --use_decoder_checkpointing \
     --attn_implementation eager \
     --num_epochs 1 --learning_rate 1e-4 \
-    --eval_steps 500 --save_steps 0 \
+    --eval_steps 500 --save_steps 2000 \
     --num_qualitative_samples 0 --save_val_per_sample
 ```
 
@@ -112,8 +112,14 @@ Adafactor: the launcher warns and the results must be reported separately.
 - Only rank 0 writes checkpoints.
 - `best_checkpoint.pt` and `final_checkpoint.pt` contain a full state dict
   (FSDP `FULL_STATE_DICT`), loadable by the single-GPU `train.py`
-  `--init_from_checkpoint` path.
-- Optimizer state is gathered on rank 0; no CPU offload is used.
+  `--init_from_checkpoint` path. `best_checkpoint.pt` is a symlink to the
+  final checkpoint because no intermediate validation selects a best model.
+- The full-state-dict gather stages tensors in host RAM
+  (`offload_to_cpu=True`) for serialization only; training never offloads to
+  the CPU.
+- `--save_steps N` (N > 0) writes model-only `checkpoint_step_N.pt` files
+  every N updates. They limit the loss after a crash but **cannot be resumed
+  from**: optimizer state is not saved.
 - Mid-epoch resume is not implemented in `train_fsdp.py`.
 
 ## Validation

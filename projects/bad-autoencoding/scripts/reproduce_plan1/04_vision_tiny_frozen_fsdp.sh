@@ -76,7 +76,7 @@ echo "    cpu offload: disabled"
     --warmup_ratio 0.1 \
     --max_grad_norm 1.0 \
     --eval_steps "${EVAL_STEPS:-500}" \
-    --save_steps 0 \
+    --save_steps "${SAVE_STEPS:-2000}" \
     --log_steps 10 \
     --num_qualitative_samples 0 \
     --save_val_per_sample \
