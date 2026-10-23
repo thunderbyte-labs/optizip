@@ -23,6 +23,12 @@ OUTPUT_DIR="${VALIDATION_OUTPUT_DIR:-$OUTPUT_ROOT/validation_${REGIME}}"
 BATCH_SIZE="${VALIDATION_BATCH_SIZE:-1}"
 NUM_WORKERS="${VALIDATION_NUM_WORKERS:-2}"
 
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+    read -r -a PY <<< "$PYTHON_BIN"
+else
+    PY=(uv run python)
+fi
+
 if [[ ! -f "$CHECKPOINT" ]]; then
     echo "ERROR: checkpoint not found: $CHECKPOINT"
     exit 1
@@ -72,4 +78,4 @@ echo "    checkpoint: $CHECKPOINT"
 echo "    val data:   $VAL_DATA"
 echo "    output:     $OUTPUT_DIR"
 
-uv run python train.py "${COMMON_ARGS[@]}"
+"${PY[@]}" train.py "${COMMON_ARGS[@]}"

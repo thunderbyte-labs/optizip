@@ -16,6 +16,13 @@ FSDP_GRAD_ACCUM="${FSDP_GRAD_ACCUM:-24}"
 OPTIMIZER="${OPTIMIZER:-adamw8bit}"
 PROBE_SAMPLES="${PROBE_SAMPLES:-8}"
 OUTPUT_DIR="${PROBE_OUTPUT_DIR:-$OUTPUT_ROOT/fsdp_probe}"
+TORCHRUN_BIN="${TORCHRUN_BIN:-torchrun}"
+
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+    read -r -a PY <<< "$PYTHON_BIN"
+else
+    PY=(uv run python)
+fi
 
 EFFECTIVE=$((NPROC * FSDP_BATCH_SIZE * FSDP_GRAD_ACCUM))
 if [[ "$EFFECTIVE" -ne 48 ]]; then
@@ -29,7 +36,7 @@ mkdir -p "$OUTPUT_DIR"
 echo "==> FSDP probe: $NPROC ranks, batch $FSDP_BATCH_SIZE x accum $FSDP_GRAD_ACCUM"
 echo "    optimizer: $OPTIMIZER, samples: $PROBE_SAMPLES, cpu offload: disabled"
 
-torchrun --nproc_per_node="$NPROC" train_fsdp.py \
+"$TORCHRUN_BIN" --nproc_per_node="$NPROC" train_fsdp.py \
     --probe \
     --regime vision \
     --vision_mode tiny \
@@ -56,5 +63,5 @@ torchrun --nproc_per_node="$NPROC" train_fsdp.py \
 
 echo
 echo "Probe result: $OUTPUT_DIR/probe_result.json"
-uv run python scripts/reproduce_plan1/gpu_doctor.py feasibility \
+"${PY[@]}" scripts/reproduce_plan1/gpu_doctor.py feasibility \
     --probe-json "$OUTPUT_DIR/probe_result.json"

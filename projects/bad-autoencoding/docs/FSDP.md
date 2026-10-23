@@ -88,6 +88,15 @@ torchrun --nproc_per_node=2 train_fsdp.py \
 The launcher `scripts/reproduce_plan1/04_vision_tiny_frozen_fsdp.sh` wraps this
 command with environment variables for data/output paths.
 
+When PyTorch is installed in a dedicated environment (for example a ROCm venv),
+point the wrappers at it instead of relying on the ambient `torchrun`/`uv`:
+
+```bash
+TORCHRUN_BIN=/path/to/venv/bin/torchrun \
+PYTHON_BIN=/path/to/venv/bin/python \
+bash scripts/reproduce_plan1/04_vision_tiny_frozen_fsdp.sh
+```
+
 ## Optimizers
 
 - `adamw8bit` (default): bitsandbytes AdamW8bit, required to fit on 16 GB.

@@ -19,6 +19,7 @@ FSDP_BATCH_SIZE="${FSDP_BATCH_SIZE:-1}"
 FSDP_GRAD_ACCUM="${FSDP_GRAD_ACCUM:-24}"
 OPTIMIZER="${OPTIMIZER:-adamw8bit}"
 OUTPUT_DIR="${VISION_FSDP_OUTPUT_DIR:-$OUTPUT_ROOT/vision_tiny_frozen_fsdp}"
+TORCHRUN_BIN="${TORCHRUN_BIN:-torchrun}"
 
 EFFECTIVE=$((NPROC * FSDP_BATCH_SIZE * FSDP_GRAD_ACCUM))
 if [[ "$EFFECTIVE" -ne 48 ]]; then
@@ -54,7 +55,7 @@ echo "    batch:     $FSDP_BATCH_SIZE x $FSDP_GRAD_ACCUM x $NPROC = $EFFECTIVE"
 echo "    optimizer: $OPTIMIZER"
 echo "    cpu offload: disabled"
 
-torchrun --nproc_per_node="$NPROC" train_fsdp.py \
+"$TORCHRUN_BIN" --nproc_per_node="$NPROC" train_fsdp.py \
     --regime vision \
     --vision_mode tiny \
     --vision_prompt free_ocr \
