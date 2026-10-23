@@ -118,7 +118,9 @@ Adafactor: the launcher warns and the results must be reported separately.
 
 ## Validation
 
-- Validation runs on rank 0; other ranks wait at a barrier.
+- Every rank runs the same validation batches, because FSDP forward passes are
+  collective. Only rank 0 logs, writes `val_per_sample.jsonl` and selects the
+  checkpoint.
 - `--save_val_per_sample` writes `val_per_sample.jsonl`, usable by
   `scripts/reproduce_plan1/estimate_paper_metric.py`.
 - Qualitative generation is disabled in the FSDP path.
