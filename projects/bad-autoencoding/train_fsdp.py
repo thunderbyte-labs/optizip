@@ -194,19 +194,27 @@ def _save_checkpoint(
     global_step: int,
     logger: logging.Logger,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Gather a full state dict on all ranks; only rank 0 writes the file.
+
+    The full-state-dict gather is a collective, so every rank must call this.
+    Optimizer state is intentionally omitted: the FSDP entry point has no
+    mid-epoch resume, and the single-GPU train.py only needs model weights for
+    --init_from_checkpoint / --validation_only.
+    """
     full_state_config = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
     with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, full_state_config):
         model_state = model.state_dict()
+
+    if dist.get_rank() != 0:
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
     # Defensive: FULL_STATE_DICT normally strips wrapper prefixes, but keep the
     # checkpoint loadable by the single-GPU train.py path.
     model_state = {
         key.replace("_fsdp_wrapped_module.", ""): value
         for key, value in model_state.items()
     }
-    optimizer_state = FSDP.full_optim_state_dict(
-        model, optimizer, rank0_only=True
-    )
 
     checkpoint = {
         "format_version": 2.0,
@@ -214,7 +222,7 @@ def _save_checkpoint(
         "batch_idx": -1,
         "global_step": global_step,
         "model_state_dict": model_state,
-        "optimizer_state_dict": optimizer_state,
+        "optimizer_state_dict": None,
         "scheduler_state_dict": None,
         "args": vars(args),
         "regime": args.regime,
@@ -636,12 +644,6 @@ def main() -> int:
                         )
                         if metrics["loss"] < best_val_loss:
                             best_val_loss = metrics["loss"]
-                            if not args.no_checkpoints:
-                                _save_checkpoint(
-                                    fsdp_model, optimizer, args, best_path,
-                                    metrics["loss"], metrics["perplexity"],
-                                    global_step, logger,
-                                )
                         torch.cuda.empty_cache()
                     dist.barrier()
 
@@ -664,6 +666,8 @@ def main() -> int:
         epoch_seconds / max(global_step, 1),
     )
 
+    final_loss = None
+    final_ppl = None
     if rank == 0 and val_loader is not None:
         logger.info("Running final validation...")
         metrics = evaluate(
@@ -675,24 +679,34 @@ def main() -> int:
             eval_seed=args.eval_seed,
             collect_per_sample=args.save_val_per_sample,
         )
+        final_loss = metrics["loss"]
+        final_ppl = metrics["perplexity"]
         logger.info(
             "Final validation: loss=%.4f, ppl=%.2f",
-            metrics["loss"],
-            metrics["perplexity"],
+            final_loss,
+            final_ppl,
         )
-        if not args.no_checkpoints:
-            if metrics["loss"] <= best_val_loss:
-                _save_checkpoint(
-                    fsdp_model, optimizer, args, best_path,
-                    metrics["loss"], metrics["perplexity"],
-                    global_step, logger,
-                )
-                best_val_loss = metrics["loss"]
-            _save_checkpoint(
-                fsdp_model, optimizer, args, final_path,
-                metrics["loss"], metrics["perplexity"],
-                global_step, logger,
-            )
+        if final_loss < best_val_loss:
+            best_val_loss = final_loss
+
+    # The full-state-dict gather is collective: every rank must enter it.
+    payload = [final_loss, final_ppl]
+    dist.broadcast_object_list(payload, src=0)
+    final_loss, final_ppl = payload
+
+    if not args.no_checkpoints:
+        _save_checkpoint(
+            fsdp_model, optimizer, args, final_path,
+            final_loss, final_ppl, global_step, logger,
+        )
+        if rank == 0:
+            # Provide best_checkpoint.pt for report/extractor tooling.
+            if best_path.exists() or best_path.is_symlink():
+                best_path.unlink()
+            try:
+                os.symlink(final_path.name, best_path)
+            except OSError:
+                pass
     dist.barrier()
 
     if rank == 0:
