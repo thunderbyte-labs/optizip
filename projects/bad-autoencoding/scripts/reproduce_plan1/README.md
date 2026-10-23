@@ -22,9 +22,12 @@ bash scripts/reproduce_plan1/00_setup_gb10.sh
 bash scripts/reproduce_plan1/01_smoke_vision.sh
 bash scripts/reproduce_plan1/01_smoke_conv1d.sh
 
-# 3. Full runs (sequential; each one takes about four days on a GB10)
-bash scripts/reproduce_plan1/02_conv1d_t63.sh
-bash scripts/reproduce_plan1/03_vision_tiny_frozen.sh
+# 3. Full runs (each one takes about four days on a GB10)
+# Option A: run both sequentially with status tracking
+bash scripts/reproduce_plan1/run_all.sh
+# Option B: launch them manually, one after the other
+# bash scripts/reproduce_plan1/02_conv1d_t63.sh
+# bash scripts/reproduce_plan1/03_vision_tiny_frozen.sh
 
 # 4. Formatted results
 uv run python scripts/reproduce_plan1/extract_results.py
