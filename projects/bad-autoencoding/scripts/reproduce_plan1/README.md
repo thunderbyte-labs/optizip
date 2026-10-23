@@ -39,6 +39,14 @@ uv run python scripts/reproduce_plan1/make_report.py
 The report is written to `outputs/report/REPORT.md`, with PNG figures and a
 machine-readable `summary.json`.
 
+If the training runs are detached (e.g. in a tmux session named `plan1`),
+`finalize_report.sh` waits for that session to end and then builds the report:
+
+```bash
+tmux new-session -d -s plan1-report \
+  "bash scripts/reproduce_plan1/finalize_report.sh 2>&1 | tee -a outputs/plan1_finalize.log"
+```
+
 ## Why these flags matter
 
 ### Hierarchical t=63
