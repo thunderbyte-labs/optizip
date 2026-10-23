@@ -438,6 +438,11 @@ def cmd_feasibility(args):
         )
     if args.require_no_cpu_offload and result.get("cpu_offload", False):
         passed = False
+    if args.min_headroom_gb > 0:
+        passed = passed and all(
+            float(item.get("headroom_gb", 0)) >= args.min_headroom_gb
+            for item in per_rank
+        )
 
     print(f"CPU offload: {result.get('cpu_offload', False)}")
     print(f"Optimizer:   {result.get('optimizer')}")
@@ -718,6 +723,7 @@ def main() -> int:
     feasibility = sub.add_parser("feasibility", help="Read a train_fsdp.py probe result")
     feasibility.add_argument("--probe-json", required=True)
     feasibility.add_argument("--limit-gb", type=float, default=0.0)
+    feasibility.add_argument("--min-headroom-gb", type=float, default=0.5)
     feasibility.add_argument("--require-no-cpu-offload", action="store_true", default=True)
     feasibility.add_argument("--json", action="store_true")
     feasibility.set_defaults(func=cmd_feasibility)

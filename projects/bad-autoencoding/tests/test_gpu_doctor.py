@@ -48,7 +48,7 @@ def test_feasibility_pass_and_fail(tmp_path, capsys):
     path = tmp_path / "probe.json"
     path.write_text(json.dumps(result))
     args = argparse.Namespace(
-        probe_json=str(path), limit_gb=0.0,
+        probe_json=str(path), limit_gb=0.0, min_headroom_gb=0.5,
         require_no_cpu_offload=True, json=False,
     )
     assert gpu_doctor.cmd_feasibility(args) == 0

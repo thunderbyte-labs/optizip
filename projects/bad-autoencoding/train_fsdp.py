@@ -263,9 +263,7 @@ def _probe(
     torch.cuda.reset_peak_memory_stats(local_rank)
     loss, _ = trainer.forward(image, target, hybrid_text, objective=args.objective)
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(
-        [p for p in fsdp_model.parameters() if p.requires_grad], args.max_grad_norm
-    )
+    FSDP.clip_grad_norm_(fsdp_model, args.max_grad_norm)
     optimizer.step()
     optimizer.zero_grad(set_to_none=True)
     torch.cuda.synchronize(local_rank)
@@ -600,9 +598,8 @@ def main() -> int:
             (loss / args.gradient_accumulation_steps).backward()
 
             if accumulated_batches % args.gradient_accumulation_steps == 0:
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    [p for p in fsdp_model.parameters() if p.requires_grad],
-                    args.max_grad_norm,
+                grad_norm = FSDP.clip_grad_norm_(
+                    fsdp_model, args.max_grad_norm
                 )
                 optimizer.step()
                 scheduler.step()
@@ -660,10 +657,7 @@ def main() -> int:
 
         # Flush the remainder of a partial accumulation window.
         if accumulated_batches % args.gradient_accumulation_steps != 0:
-            torch.nn.utils.clip_grad_norm_(
-                [p for p in fsdp_model.parameters() if p.requires_grad],
-                args.max_grad_norm,
-            )
+            FSDP.clip_grad_norm_(fsdp_model, args.max_grad_norm)
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
