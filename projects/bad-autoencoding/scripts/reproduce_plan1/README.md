@@ -149,6 +149,33 @@ outputs/<run>/final_checkpoint.pt    # symlink to best when final is best
 - compression ratio `1000 / context_tokens`
 - `delta_ppl` against the paper value.
 
+## Multi-GPU (FSDP)
+
+If a run does not fit on one GPU, use the GPU-only FSDP path. Full details are
+in [`docs/FSDP.md`](../../docs/FSDP.md).
+
+```bash
+# go/no-go memory probe
+bash scripts/reproduce_plan1/05_probe_fsdp.sh
+
+# full vision run, e.g. 2 GPUs x batch 1 x grad-accum 24 = effective 48
+bash scripts/reproduce_plan1/04_vision_tiny_frozen_fsdp.sh
+```
+
+No CPU offload is used. If the probe fails, use a single-GPU run or
+validation-only.
+
+## GPU diagnostics
+
+```bash
+uv run python scripts/reproduce_plan1/gpu_doctor.py env
+uv run python scripts/reproduce_plan1/gpu_doctor.py monitor --duration 600 \
+    --out outputs/gpu_monitor.csv
+uv run python scripts/reproduce_plan1/gpu_doctor.py report \
+    --monitor-csv outputs/gpu_monitor.csv \
+    --train-log outputs/conv1d_t63_lm_recon-init/train.log
+```
+
 ## Statistical report
 
 The full run scripts pass `--save_val_per_sample`, which writes the mean NLL of
