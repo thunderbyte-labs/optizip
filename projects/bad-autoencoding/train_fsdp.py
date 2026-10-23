@@ -458,9 +458,6 @@ def main() -> int:
         sharding_strategy=ShardingStrategy.FULL_SHARD,
         use_orig_params=True,
         sync_module_states=True,
-        # Overlap the next unit's all-gather with the current unit's compute.
-        # This matters for the 1-sample micro-batches used on 16 GB GPUs.
-        forward_prefetch=True,
     )
     trainer.model = fsdp_model
 
@@ -689,6 +686,16 @@ def main() -> int:
         epoch_seconds / max(global_step, 1),
     )
 
+    # Free gradient buffers and optimizer state before the final validation.
+    # On 16 GB cards the validation forward would otherwise compete with
+    # ~6 GB of persistent training state. The checkpoint omits optimizer
+    # state anyway, so nothing needed for saving is lost.
+    optimizer.zero_grad(set_to_none=True)
+    del scheduler
+    del optimizer
+    torch.cuda.empty_cache()
+    dist.barrier()
+
     final_loss = None
     final_ppl = None
     if val_loader is not None:
@@ -721,7 +728,7 @@ def main() -> int:
 
     if not args.no_checkpoints:
         _save_checkpoint(
-            fsdp_model, optimizer, args, final_path,
+            fsdp_model, None, args, final_path,
             final_loss, final_ppl, global_step, logger,
         )
         if rank == 0:

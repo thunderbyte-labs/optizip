@@ -21,6 +21,13 @@ OPTIMIZER="${OPTIMIZER:-adamw8bit}"
 OUTPUT_DIR="${VISION_FSDP_OUTPUT_DIR:-$OUTPUT_ROOT/vision_tiny_frozen_fsdp}"
 TORCHRUN_BIN="${TORCHRUN_BIN:-torchrun}"
 
+# On 16 GB cards, skip the initial validation if the allocator cannot hold
+# the validation pool and the first optimizer step at the same time.
+INITIAL_VALIDATION_ARGS=()
+if [[ "${INITIAL_VALIDATION:-1}" == "1" ]]; then
+    INITIAL_VALIDATION_ARGS+=(--initial_validation)
+fi
+
 EFFECTIVE=$((NPROC * FSDP_BATCH_SIZE * FSDP_GRAD_ACCUM))
 if [[ "$EFFECTIVE" -ne 48 ]]; then
     echo "ERROR: effective batch is $EFFECTIVE, expected 48."
@@ -82,5 +89,5 @@ echo "    cpu offload: disabled"
     --save_val_per_sample \
     --num_workers "${NUM_WORKERS:-4}" \
     --prefetch_factor "${PREFETCH_FACTOR:-2}" \
-    --initial_validation \
+    "${INITIAL_VALIDATION_ARGS[@]}" \
     --seed "${SEED:-42}"

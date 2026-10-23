@@ -41,6 +41,16 @@ The script refuses to start if this does not equal `--target_effective_batch`
 The 16 GB configuration is tight. Always run the probe first; it reports peak
 allocated memory and headroom per rank.
 
+The one-step probe is necessary but not sufficient: it does not measure a
+forward/backward pass taken **after** the optimizer state is live. On
+2 x 16 GB RX 9070 XT (`gfx1201`, ROCm 7.2), `adamw8bit` passes the probe at
+9.7 GB allocated / 11.8 GB reserved and then OOMs on the second update: the
+process holds roughly 5.5 GB of VRAM outside PyTorch's allocator, and the
+AdamW8bit state plus the next activations do not fit. `2 x 12` accumulation
+also OOMs. Running a few real updates (e.g. `--max_samples 960`) is the
+reliable gate. If they fail, use the single-GPU DGX path or a memory-saving
+optimizer, never CPU offload.
+
 ## Probe
 
 ```bash
