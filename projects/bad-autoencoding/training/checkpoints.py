@@ -340,9 +340,14 @@ def load_checkpoint(checkpoint_path: Path, model, optimizer=None, scheduler=None
         logger.info(f"Loading checkpoint state (model/optimizer/scheduler) from {checkpoint_path}")
 
     try:
+        # Initialization/validation checkpoints are only used for their model
+        # weights. Load them on CPU so a checkpoint larger than the target GPU
+        # (e.g. a 17 GB conv checkpoint on a 16 GB card) does not OOM before
+        # the state dict is filtered. Full resumes still map to the device.
+        load_device = "cpu" if weights_only else device
         checkpoint = torch.load(
             checkpoint_path,
-            map_location=device,
+            map_location=load_device,
             weights_only=False,  # Required: checkpoint contains RNG states (numpy arrays)
         )
     except (RuntimeError, EOFError, OSError, pickle.UnpicklingError) as e:
