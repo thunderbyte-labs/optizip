@@ -519,7 +519,10 @@ def main() -> int:
     )
 
     val_loader = None
-    if rank == 0 and args.val_data_path:
+    if args.val_data_path:
+        # FSDP forward passes are collective, so every rank must run the same
+        # validation batches. Each rank evaluates the full validation split;
+        # only rank 0 logs and writes per-sample results.
         val_dataset = create_vision_dataset(
             args.val_data_path,
             tokenizer,
@@ -535,7 +538,8 @@ def main() -> int:
             num_workers=args.num_workers,
             pin_memory=True,
         )
-        logger.info("Validation dataset: %s samples", len(val_dataset))
+        if rank == 0:
+            logger.info("Validation dataset: %s samples", len(val_dataset))
 
     best_val_loss = float("inf")
     global_step = 0
@@ -543,22 +547,25 @@ def main() -> int:
     final_path = output_dir / "final_checkpoint.pt"
 
     if args.initial_validation and val_loader is not None:
-        logger.info("Running initial validation (rank 0)...")
+        if rank == 0:
+            logger.info("Running initial validation (all ranks)...")
         metrics = evaluate(
             trainer, val_loader, "vision", logger, args, global_step=0,
             num_qualitative_samples=0,
             max_generation_tokens=args.max_generation_tokens,
-            output_dir=output_dir,
+            output_dir=output_dir if rank == 0 else None,
             eval_seed=args.eval_seed,
             collect_per_sample=False,
         )
-        best_val_loss = metrics["loss"]
-        logger.info(
-            "Initial validation: loss=%.4f, ppl=%.2f",
-            metrics["loss"],
-            metrics["perplexity"],
-        )
+        if rank == 0:
+            best_val_loss = metrics["loss"]
+            logger.info(
+                "Initial validation: loss=%.4f, ppl=%.2f",
+                metrics["loss"],
+                metrics["perplexity"],
+            )
         torch.cuda.empty_cache()
+        dist.barrier()
 
     logger.info("Starting FSDP training loop...")
     epoch_start = time.time()
@@ -625,17 +632,21 @@ def main() -> int:
                     tokens_since_log = 0
                     log_start = time.time()
 
-                if args.eval_steps > 0 and global_step % args.eval_steps == 0:
-                    if rank == 0 and val_loader is not None:
-                        metrics = evaluate(
-                            trainer, val_loader, "vision", logger, args,
-                            global_step=global_step,
-                            num_qualitative_samples=0,
-                            max_generation_tokens=args.max_generation_tokens,
-                            output_dir=output_dir,
-                            eval_seed=args.eval_seed,
-                            collect_per_sample=False,
-                        )
+                if (
+                    args.eval_steps > 0
+                    and global_step % args.eval_steps == 0
+                    and val_loader is not None
+                ):
+                    metrics = evaluate(
+                        trainer, val_loader, "vision", logger, args,
+                        global_step=global_step,
+                        num_qualitative_samples=0,
+                        max_generation_tokens=args.max_generation_tokens,
+                        output_dir=output_dir if rank == 0 else None,
+                        eval_seed=args.eval_seed,
+                        collect_per_sample=False,
+                    )
+                    if rank == 0:
                         logger.info(
                             "Validation at step %s: loss=%.4f, ppl=%.2f",
                             global_step,
@@ -668,26 +679,28 @@ def main() -> int:
 
     final_loss = None
     final_ppl = None
-    if rank == 0 and val_loader is not None:
-        logger.info("Running final validation...")
+    if val_loader is not None:
+        if rank == 0:
+            logger.info("Running final validation (all ranks)...")
         metrics = evaluate(
             trainer, val_loader, "vision", logger, args,
             global_step=global_step,
             num_qualitative_samples=0,
             max_generation_tokens=args.max_generation_tokens,
-            output_dir=output_dir,
+            output_dir=output_dir if rank == 0 else None,
             eval_seed=args.eval_seed,
-            collect_per_sample=args.save_val_per_sample,
+            collect_per_sample=args.save_val_per_sample and rank == 0,
         )
-        final_loss = metrics["loss"]
-        final_ppl = metrics["perplexity"]
-        logger.info(
-            "Final validation: loss=%.4f, ppl=%.2f",
-            final_loss,
-            final_ppl,
-        )
-        if final_loss < best_val_loss:
-            best_val_loss = final_loss
+        if rank == 0:
+            final_loss = metrics["loss"]
+            final_ppl = metrics["perplexity"]
+            logger.info(
+                "Final validation: loss=%.4f, ppl=%.2f",
+                final_loss,
+                final_ppl,
+            )
+            if final_loss < best_val_loss:
+                best_val_loss = final_loss
 
     # The full-state-dict gather is collective: every rank must enter it.
     payload = [final_loss, final_ppl]
