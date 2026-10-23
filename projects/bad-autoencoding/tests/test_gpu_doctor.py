@@ -29,6 +29,13 @@ def test_igpu_detection():
     assert not gpu_doctor._is_igpu(
         {"name": "AMD Radeon RX 9070 XT", "mem_total_gb": 15.9}
     )
+    # Monitor CSV rows carry strings, not floats.
+    assert gpu_doctor._is_igpu(
+        {"name": "AMD Radeon Graphics", "mem_total_gb": "2.0"}
+    )
+    assert not gpu_doctor._is_igpu(
+        {"name": "AMD Radeon RX 9070 XT", "mem_total_gb": "15.921875"}
+    )
 
 
 def test_feasibility_pass_and_fail(tmp_path, capsys):
@@ -86,6 +93,22 @@ def test_report_marks_healthy_monitor_as_pass(tmp_path, capsys):
                     "throttle": None,
                 }
             )
+        # Integrated GPU: it must not drag down util/idle checks.
+        writer.writerow(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "index": 2,
+                "name": "AMD Radeon Graphics",
+                "util_gpu": 0.0,
+                "util_mem": 0,
+                "mem_used_gb": 0.1,
+                "mem_total_gb": 2.0,
+                "power_w": 0.0,
+                "temp_c": 45,
+                "clock_mhz": 600,
+                "throttle": None,
+            }
+        )
     out = tmp_path / "report.json"
     args = argparse.Namespace(
         monitor_csv=str(csv_path), train_log=None, probe_json=None,

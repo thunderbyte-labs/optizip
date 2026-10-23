@@ -243,7 +243,7 @@ def _smi(device=None):
 
 def _is_igpu(row):
     name = (row.get("name") or "").lower()
-    total = row.get("mem_total_gb")
+    total = _num(row.get("mem_total_gb"))
     return (
         "raphael" in name
         or "graphics" in name
@@ -370,6 +370,8 @@ def cmd_monitor(args):
     try:
         while deadline is None or time.time() < deadline:
             sample = _sample(device=args.device)
+            if not getattr(args, "include_igpu", False):
+                sample = [row for row in sample if not _is_igpu(row)]
             rows.extend(sample)
             for row in sample:
                 util = row.get("util_gpu")
@@ -463,6 +465,8 @@ def cmd_feasibility(args):
 
 def cmd_report(args):
     rows = _read_monitor(args.monitor_csv)
+    if not getattr(args, "include_igpu", False):
+        rows = [row for row in rows if not _is_igpu(row)]
     by_gpu = {}
     for row in rows:
         by_gpu.setdefault(int(row["index"]), []).append(row)
@@ -584,7 +588,7 @@ def _dist_worker(rank, world_size, sizes_mb, iters, port):
     )
     results = []
     for size_mb in sizes_mb:
-        elements = max(1, size_mb * 1024 * 1024 // 4)
+        elements = max(1, int(size_mb * 1024 * 1024 // 4))
         tensor = torch.ones(elements, dtype=torch.float32, device=f"cuda:{rank}")
         for _ in range(3):
             dist.all_reduce(tensor)
@@ -602,6 +606,11 @@ def _dist_worker(rank, world_size, sizes_mb, iters, port):
     dist.barrier()
     dist.destroy_process_group()
     return results
+
+
+def _dist_entry(rank, world_size, sizes_mb, iters, port, queue):
+    """Top-level entry point so the spawn context can pickle it."""
+    queue.put((rank, _dist_worker(rank, world_size, sizes_mb, iters, port)))
 
 
 def cmd_dist(args):
@@ -623,10 +632,12 @@ def cmd_dist(args):
     ctx = mp.get_context("spawn")
     queue = ctx.Queue()
 
-    def worker(rank, world_size, queue):
-        queue.put((rank, _dist_worker(rank, world_size, sizes, args.iters, port)))
-
-    mp.spawn(worker, args=(world_size, queue), nprocs=world_size, join=True)
+    mp.spawn(
+        _dist_entry,
+        args=(world_size, sizes, args.iters, port, queue),
+        nprocs=world_size,
+        join=True,
+    )
     results = {}
     while not queue.empty():
         rank, data = queue.get()
@@ -717,6 +728,8 @@ def main() -> int:
     monitor.add_argument("--duration", type=float, default=0.0,
                          help="Seconds to monitor; 0 means until Ctrl-C")
     monitor.add_argument("--device", type=int, default=None)
+    monitor.add_argument("--include-igpu", action="store_true",
+                         help="Also sample integrated GPUs (excluded by default).")
     monitor.add_argument("--out", default="outputs/gpu_monitor.csv")
     monitor.set_defaults(func=cmd_monitor)
 
@@ -735,6 +748,8 @@ def main() -> int:
     report.add_argument("--util-threshold", type=float, default=85.0)
     report.add_argument("--max-idle-fraction", type=float, default=0.10)
     report.add_argument("--max-throughput-cv", type=float, default=5.0)
+    report.add_argument("--include-igpu", action="store_true",
+                        help="Also report integrated GPUs (excluded by default).")
     report.add_argument("--out", default=None)
     report.add_argument("--json", action="store_true")
     report.set_defaults(func=cmd_report)
