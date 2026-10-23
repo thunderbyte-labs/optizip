@@ -108,7 +108,12 @@ def format_run(run_dir: Path, spec: dict) -> str:
 
     precise_ppl = math.exp(metrics["final_val_loss"])
     delta_ppl = precise_ppl - spec["paper_ppl"]
-    checkpoint = os.path.relpath(checkpoint_path(run_dir), Path.cwd())
+    try:
+        checkpoint = os.path.relpath(checkpoint_path(run_dir), Path.cwd())
+    except FileNotFoundError:
+        # Statistical extraction can run on a machine that only received the
+        # logs and per-sample NLL, not the multi-GB checkpoint.
+        checkpoint = "n/a"
 
     return (
         "=== LM RUN ===\n"
