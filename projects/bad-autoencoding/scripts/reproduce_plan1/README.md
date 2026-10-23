@@ -121,6 +121,7 @@ All scripts source `common.sh`. Override any of these before running:
 | `NUM_WORKERS` | `8` | DataLoader workers |
 | `ATTN_IMPLEMENTATION` | `eager` | `auto`, `flash_attention_2`, or `eager` |
 | `FORCE` | `0` | Set to `1` to delete an existing run directory |
+| `SKIP_VISION` | `0` | Set to `1` to skip the queued vision run (also `/tmp/skip_plan1_vision`) |
 
 Example with a larger batch:
 

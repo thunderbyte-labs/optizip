@@ -13,6 +13,13 @@ source "$SCRIPT_DIR/common.sh"
 
 OUTPUT_DIR="${VISION_OUTPUT_DIR:-$OUTPUT_ROOT/vision_tiny_frozen_lm}"
 
+# Allow a queued run to be skipped without killing an in-progress sibling run.
+# This is useful when the same configuration is launched on another machine.
+if [[ "${SKIP_VISION:-0}" == "1" || -f "${SKIP_VISION_FILE:-/tmp/skip_plan1_vision}" ]]; then
+    echo "Skipping vision run (SKIP_VISION=${SKIP_VISION:-0}, file=${SKIP_VISION_FILE:-/tmp/skip_plan1_vision})."
+    exit 0
+fi
+
 if [[ ! -f "$TRAIN_DATA/dataset_info.json" || ! -f "$VAL_DATA/dataset_info.json" ]]; then
     echo "ERROR: Arrow datasets not found."
     echo "Expected: $TRAIN_DATA and $VAL_DATA"
