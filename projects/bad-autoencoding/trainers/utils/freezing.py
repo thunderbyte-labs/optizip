@@ -2,20 +2,24 @@
 
 from typing import Dict
 
-from ..config import ENCODER_COMPONENTS
+from ..config import get_encoder_components
 
 
-def freeze_vision_encoder(model):
+def freeze_vision_encoder(model, ocr_version: str = 'ocr1'):
     """
     Freeze vision encoder components (SAM + ViT + Projector)
 
-    For Regime 1: Vision Compression
+    For Regime 1: Vision Compression.
+
+    ``ocr_version`` selects the architecture-specific encoder component list
+    (OCR-1: SAM + CLIP + projector, OCR-2: SAM + Qwen2 + projector + separator).
     """
+    encoder_components = get_encoder_components(ocr_version)
     frozen_params = 0
     for name, param in model.named_parameters():
         # Strip _orig_mod. prefix added by torch.compile()
         param_name = name.removeprefix('_orig_mod.')
-        for component in ENCODER_COMPONENTS:
+        for component in encoder_components:
             if param_name.startswith(component):
                 param.requires_grad = False
                 frozen_params += param.numel()
@@ -32,18 +36,19 @@ def freeze_vision_encoder(model):
     return frozen_params
 
 
-def unfreeze_vision_encoder(model):
+def unfreeze_vision_encoder(model, ocr_version: str = 'ocr1'):
     """
     Unfreeze vision encoder components (SAM + ViT + Projector)
 
     Opposite of freeze_vision_encoder() - enables training of encoder.
     For trainable encoder experiments.
     """
+    encoder_components = get_encoder_components(ocr_version)
     trainable_params = 0
     for name, param in model.named_parameters():
         # Strip _orig_mod. prefix added by torch.compile()
         param_name = name.removeprefix('_orig_mod.')
-        for component in ENCODER_COMPONENTS:
+        for component in encoder_components:
             if param_name.startswith(component):
                 param.requires_grad = True
                 trainable_params += param.numel()
@@ -60,7 +65,7 @@ def unfreeze_vision_encoder(model):
     return trainable_params
 
 
-def get_encoder_params(model):
+def get_encoder_params(model, ocr_version: str = 'ocr1'):
     """
     Get encoder parameters for differential learning rates
 
@@ -73,14 +78,15 @@ def get_encoder_params(model):
 
     Used for creating optimizer with separate encoder/decoder param groups.
     """
+    encoder_components = get_encoder_components(ocr_version)
     encoder_params = []
 
     for name, param in model.named_parameters():
         # Strip _orig_mod. prefix added by torch.compile()
         param_name = name.removeprefix('_orig_mod.')
 
-        # Vision encoder components (SAM + ViT + Projector)
-        if any(param_name.startswith(comp) for comp in ENCODER_COMPONENTS):
+        # Vision encoder components (SAM + ViT/CLIP + Projector [+ view separator])
+        if any(param_name.startswith(comp) for comp in encoder_components):
             if param.requires_grad:
                 encoder_params.append(param)
 
@@ -104,7 +110,7 @@ def get_encoder_params(model):
     return encoder_params
 
 
-def get_decoder_params(model):
+def get_decoder_params(model, ocr_version: str = 'ocr1'):
     """
     Get decoder parameters for differential learning rates
 
@@ -116,11 +122,12 @@ def get_decoder_params(model):
     - Final layer norm (model.norm)
 
     Excludes ALL encoder/compression components:
-    - Vision encoder: SAM, ViT, Projector
+    - Vision encoder: SAM, ViT/CLIP, Projector [+ view separator for OCR-2]
     - Compression modules: separators, conv pyramids, etc.
 
     Used for creating optimizer with separate encoder/decoder param groups.
     """
+    encoder_components = get_encoder_components(ocr_version)
     decoder_params = []
 
     for name, param in model.named_parameters():
@@ -128,7 +135,7 @@ def get_decoder_params(model):
         param_name = name.removeprefix('_orig_mod.')
 
         # Exclude vision encoder components
-        if any(param_name.startswith(comp) for comp in ENCODER_COMPONENTS):
+        if any(param_name.startswith(comp) for comp in encoder_components):
             continue
 
         # Exclude compression module: separator embeddings (all regimes)

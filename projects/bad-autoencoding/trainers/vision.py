@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .config import IMAGE_TOKEN_ID, VISION_MODES, GUNDAM_PRESET, VISION_TOKEN_COUNT
+from .config import IMAGE_TOKEN_ID, VISION_MODES, GUNDAM_PRESET, VISION_TOKEN_COUNT, get_vision_modes
 from .utils import (
     freeze_vision_encoder,
     unfreeze_vision_encoder,
@@ -26,11 +26,12 @@ class VisionCompressionTrainer:
     - Loss: computed only on continuation tokens
     """
 
-    def __init__(self, model, tokenizer, vision_mode: str = 'small', device: str = 'cuda', hybrid_text_tokens: int = 0, vision_prompt: Optional[str] = None, train_encoder: bool = False):
+    def __init__(self, model, tokenizer, vision_mode: str = 'small', device: str = 'cuda', hybrid_text_tokens: int = 0, vision_prompt: Optional[str] = None, train_encoder: bool = False, ocr_version: str = 'ocr1'):
         self.model = model
         self.tokenizer = tokenizer
         self.vision_mode = vision_mode
-        self.mode_config = VISION_MODES[vision_mode]
+        self.ocr_version = ocr_version
+        self.mode_config = get_vision_modes(ocr_version)[vision_mode]
         self.device = torch.device(device)
         self.hybrid_text_tokens = hybrid_text_tokens
         self.vision_prompt = vision_prompt
@@ -54,9 +55,9 @@ class VisionCompressionTrainer:
 
         # Conditionally freeze/unfreeze vision encoder
         if train_encoder:
-            unfreeze_vision_encoder(model)
+            unfreeze_vision_encoder(model, ocr_version=ocr_version)
         else:
-            freeze_vision_encoder(model)
+            freeze_vision_encoder(model, ocr_version=ocr_version)
 
         # Unfreeze decoder
         unfreeze_decoder(model)

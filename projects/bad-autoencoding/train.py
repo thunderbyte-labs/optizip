@@ -71,6 +71,7 @@ from trainers.config import (
     VISION_PROMPT_PRESETS,
     GUNDAM_PRESET,
     VISION_TOKEN_COUNT,
+    get_vision_modes,
 )
 
 # Import text similarity metrics for qualitative evaluation
@@ -363,10 +364,11 @@ class VisionCompressionDataset(Dataset):
     Uses FIXED 1000-token context (pre-rendered) + 1000-token continuation.
     """
 
-    def __init__(self, data_path: str, tokenizer, vision_mode: str = 'small', transform=None, max_samples: Optional[int] = None, hybrid_text_tokens: int = 0):
+    def __init__(self, data_path: str, tokenizer, vision_mode: str = 'small', transform=None, max_samples: Optional[int] = None, hybrid_text_tokens: int = 0, ocr_version: str = 'ocr1'):
         self.tokenizer = tokenizer
         self.vision_mode = vision_mode
-        self.mode_config = VISION_MODES[vision_mode]
+        self.ocr_version = ocr_version
+        self.mode_config = get_vision_modes(ocr_version)[vision_mode]
         self.transform = transform or BasicImageTransform()
         self.hybrid_text_tokens = hybrid_text_tokens
 
@@ -552,7 +554,8 @@ def create_vision_dataset(
     tokenizer,
     vision_mode: str,
     max_samples: Optional[int] = None,
-    hybrid_text_tokens: int = 0
+    hybrid_text_tokens: int = 0,
+    ocr_version: str = 'ocr1'
 ):
     """
     Create vision dataset with auto-detection of format (Arrow or JSONL).
@@ -574,7 +577,8 @@ def create_vision_dataset(
             tokenizer,
             vision_mode=vision_mode,
             max_samples=max_samples,
-            hybrid_text_tokens=hybrid_text_tokens
+            hybrid_text_tokens=hybrid_text_tokens,
+            ocr_version=ocr_version
         )
     else:
         logging.info(f"Detected JSONL format: {data_path}")
@@ -583,7 +587,8 @@ def create_vision_dataset(
             tokenizer,
             vision_mode=vision_mode,
             max_samples=max_samples,
-            hybrid_text_tokens=hybrid_text_tokens
+            hybrid_text_tokens=hybrid_text_tokens,
+            ocr_version=ocr_version
         )
 
 
@@ -1892,7 +1897,8 @@ def main(args):
         use_optimized_model=args.use_optimized_model,
         use_encoder_checkpointing=args.use_encoder_checkpointing,
         load_vision_encoder=load_vision_encoder,
-        attn_implementation=args.attn_implementation
+        attn_implementation=args.attn_implementation,
+        ocr_version=args.ocr_version
     )
 
     # Enable decoder gradient checkpointing if requested
@@ -1926,7 +1932,8 @@ def main(args):
             device=args.device,
             hybrid_text_tokens=args.hybrid_text_tokens,
             vision_prompt=args.vision_prompt,
-            train_encoder=args.train_encoder
+            train_encoder=args.train_encoder,
+            ocr_version=args.ocr_version
         )
         logger.info(f"Created Vision Compression trainer (mode: {args.vision_mode})")
         if args.hybrid_text_tokens > 0:
@@ -2067,7 +2074,8 @@ def main(args):
                 tokenizer,
                 vision_mode=args.vision_mode,
                 max_samples=args.max_samples,
-                hybrid_text_tokens=args.hybrid_text_tokens
+                hybrid_text_tokens=args.hybrid_text_tokens,
+                ocr_version=args.ocr_version
             )
             collate_fn = vision_collate_fn
         else:
@@ -2162,7 +2170,8 @@ def main(args):
                 tokenizer,
                 vision_mode=args.vision_mode,
                 max_samples=None,
-                hybrid_text_tokens=args.hybrid_text_tokens
+                hybrid_text_tokens=args.hybrid_text_tokens,
+                ocr_version=args.ocr_version
             )
             # Set collate_fn if not already set (happens in validation-only mode)
             if collate_fn is None:

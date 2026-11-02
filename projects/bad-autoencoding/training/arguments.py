@@ -39,11 +39,19 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--max_samples', type=int, default=None,
                        help='Maximum number of samples to use from dataset (useful for quick testing). '
                             'If None, use all samples.')
+    parser.add_argument('--ocr_version', type=str, default='ocr1',
+                       choices=['ocr1', 'ocr2'],
+                       help='Vision encoder/decoder version: ocr1 (DeepSeek-OCR) or '
+                            'ocr2 (DeepSeek-OCR-2 / DeepEncoder V2). For ocr2, vision_mode '
+                            'maps to: tiny (512x512, 65 tokens), small (768x768, 145 tokens), '
+                            'base (1024x1024, 257 tokens).')
     parser.add_argument('--vision_mode', type=str, default='small',
                        choices=['tiny', 'small', 'base', 'large'],
                        help='Vision compression mode (required for --regime=vision): ' +
-                            'tiny (512x512, 73 tokens), small (640x640, 111 tokens), ' +
-                            'base (1024x1024, 273 tokens), large (1280x1280, 421 tokens)')
+                            'OCR-1: tiny (512x512, 73 tokens), small (640x640, 111 tokens), ' +
+                            'base (1024x1024, 273 tokens), large (1280x1280, 421 tokens); ' +
+                            'OCR-2: tiny (512x512, 65 tokens), small (768x768, 145 tokens), ' +
+                            'base (1024x1024, 257 tokens)')
     parser.add_argument('--text_context_tokens', type=int, default=None,
                        help='For text regime: number of context tokens to keep (truncate from end). '
                             'Default (None) keeps the full context provided in the dataset.')

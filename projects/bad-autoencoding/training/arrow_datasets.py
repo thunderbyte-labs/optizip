@@ -26,7 +26,7 @@ from datasets import Dataset as HFDataset
 from datasets import load_from_disk
 from torch.utils.data import Dataset
 
-from trainers.config import VISION_MODES
+from trainers.config import VISION_MODES, get_vision_modes
 from trainers.utils.image import BasicImageTransform
 
 
@@ -137,7 +137,8 @@ class ArrowVisionDataset(Dataset):
         vision_mode: str = 'small',
         transform=None,
         max_samples: Optional[int] = None,
-        hybrid_text_tokens: int = 0
+        hybrid_text_tokens: int = 0,
+        ocr_version: str = 'ocr1'
     ):
         """
         Initialize Arrow-backed vision dataset.
@@ -149,10 +150,12 @@ class ArrowVisionDataset(Dataset):
             transform: Image transform (defaults to BasicImageTransform)
             max_samples: Optional limit on number of samples to use
             hybrid_text_tokens: Number of tokens from context end to use as hybrid text
+            ocr_version: 'ocr1' or 'ocr2' (selects the vision-mode token mapping)
         """
         self.tokenizer = tokenizer
         self.vision_mode = vision_mode
-        self.mode_config = VISION_MODES[vision_mode]
+        self.ocr_version = ocr_version
+        self.mode_config = get_vision_modes(ocr_version)[vision_mode]
         self.transform = transform or BasicImageTransform()
         self.hybrid_text_tokens = hybrid_text_tokens
         self.data_path = Path(data_path)
